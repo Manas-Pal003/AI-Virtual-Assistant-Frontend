@@ -1,14 +1,66 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
+import axiosClient from "../../Api/axiosClient";
+import { saveAuth } from "../../utils/auth";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+  const [isLoading, setIsLoading] = useState(false);
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Later connect API here
-    console.log("Login submitted");
+    if (!formData.email || !formData.password) {
+      alert("Email and password are required");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const response = await axiosClient.post("/auth/login", {
+        email: formData.email,
+        password: formData.password,
+      });
+
+      const { user, token, message } = response.data;
+
+      if (!user || !token) {
+        alert("Invalid login response from server");
+        return;
+      }
+
+      saveAuth(user, token);
+
+      alert(message || "Login successful!");
+
+      if (user.role === "Admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/dashboard");
+      }
+    } catch (error) {
+      console.error("Login error", error);
+
+      alert(
+        error.response?.data?.message ||
+        "Login failed. Please check your credentials."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -18,7 +70,7 @@ const Login = () => {
       <div className="absolute bottom-[-120px] right-[-120px] w-[350px] h-[350px] bg-purple-500/30 rounded-full blur-[120px]" />
 
       <div className="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-        
+
         {/* Left Side */}
         <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-to-br from-blue-600 to-purple-700 text-white">
           <div>
@@ -56,7 +108,10 @@ const Login = () => {
               </label>
               <input
                 type="email"
+                name="email"
                 placeholder="Enter your email"
+                value={formData.email}
+                onChange={handleChange}
                 className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
                 required
               />
@@ -71,7 +126,10 @@ const Login = () => {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
+                  name="password"
                   placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
                   className="w-full h-12 px-4 pr-12 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
                   required
                 />
@@ -79,9 +137,9 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 flex items-center justify-center"
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
@@ -107,9 +165,10 @@ const Login = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition"
+              disabled={isLoading}
+              className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Login
+              {isLoading ? "Logging in..." : "Login"}
             </button>
           </form>
 
