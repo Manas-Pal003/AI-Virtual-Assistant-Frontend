@@ -2,6 +2,9 @@ import Login from "../Pages/Auth/Login";
 import Register from "../Pages/Auth/Register";
 import NotFound from "../Pages/NotFoundpage";
 import Unauthorized from "../Pages/Auth/Unauthorized";
+import Customize from "../Pages/Customize";
+import Dashboard from "../Pages/Dashboard";
+
 
 const AuthRoute = [
     {
@@ -19,6 +22,14 @@ const AuthRoute = [
     {
         path: '/unauthorized',
         element: <Unauthorized />,
+    },
+    {
+        path:"/customize",
+        element:<Customize />
+    },
+    {
+        path: '/dashboard',
+        element: <Dashboard />,
     },
     {
         path: "*",

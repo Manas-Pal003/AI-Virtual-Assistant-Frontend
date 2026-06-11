@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import axiosClient from "../../Api/axiosClient";
+import axiosClient from "../../api/axiosClient";
+import { UserContext } from "../../context/UserContext";
 
 
 
@@ -9,15 +10,18 @@ import axiosClient from "../../Api/axiosClient";
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
-  const navigate = useNavigate();
 
+  const { serverUrl,userData,setUserData } = useContext(UserContext);
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -28,7 +32,12 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.password) {
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword
+    ) {
       alert("All fields are required");
       return;
     }
@@ -50,12 +59,13 @@ const Register = () => {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        role: "User",
       });
+      setUserData(response.data.user);
 
       alert(response.data.message || "Registration successful!");
       navigate("/login");
     } catch (error) {
+      setUserData(null);
       console.error("Register error", error);
 
       alert(
@@ -69,13 +79,11 @@ const Register = () => {
 
   return (
     <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center px-4 py-8 relative overflow-hidden">
-      {/* Background Glow */}
       <div className="absolute top-[-120px] right-[-120px] w-[380px] h-[380px] bg-cyan-500/30 rounded-full blur-[130px]" />
       <div className="absolute bottom-[-120px] left-[-120px] w-[380px] h-[380px] bg-purple-500/30 rounded-full blur-[130px]" />
       <div className="absolute top-1/2 left-1/2 w-[300px] h-[300px] bg-blue-500/20 rounded-full blur-[140px] -translate-x-1/2 -translate-y-1/2" />
 
       <div className="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-        {/* Left Side */}
         <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-to-br from-cyan-600 via-blue-600 to-purple-700 text-white">
           <div>
             <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/20 flex items-center justify-center mb-8">
@@ -109,7 +117,6 @@ const Register = () => {
           </div>
         </div>
 
-        {/* Right Side Form */}
         <div className="p-8 sm:p-12 bg-white">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-slate-900">
@@ -121,7 +128,6 @@ const Register = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Name */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Full Name
@@ -137,7 +143,6 @@ const Register = () => {
               />
             </div>
 
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Email Address
@@ -153,7 +158,6 @@ const Register = () => {
               />
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Password
@@ -180,7 +184,6 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Confirm Password
@@ -204,12 +207,15 @@ const Register = () => {
                   }
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 flex items-center justify-center"
                 >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showConfirmPassword ? (
+                    <EyeOff size={20} />
+                  ) : (
+                    <Eye size={20} />
+                  )}
                 </button>
               </div>
             </div>
 
-            {/* Terms */}
             <label className="flex items-start gap-3 text-sm text-slate-600">
               <input
                 type="checkbox"
@@ -228,7 +234,6 @@ const Register = () => {
               </span>
             </label>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -238,14 +243,12 @@ const Register = () => {
             </button>
           </form>
 
-          {/* Divider */}
           <div className="flex items-center gap-4 my-7">
             <div className="h-px bg-slate-200 flex-1" />
             <span className="text-sm text-slate-400">or</span>
             <div className="h-px bg-slate-200 flex-1" />
           </div>
 
-          {/* Google Button */}
           <button className="w-full h-12 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium hover:bg-slate-50 transition">
             Continue with Google
           </button>

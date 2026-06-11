@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import axiosClient from "../../Api/axiosClient";
+import axiosClient from "../../api/axiosClient";
 import { saveAuth } from "../../utils/auth";
+import {useContext} from "react";
+import { UserContext } from "../../context/UserContext";
+
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const {userData,setUserData} = useContext(UserContext);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -19,6 +23,9 @@ const Login = () => {
     });
   };
   const [isLoading, setIsLoading] = useState(false);
+
+  
+  // Handle Form Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -33,7 +40,8 @@ const Login = () => {
       const response = await axiosClient.post("/auth/login", {
         email: formData.email,
         password: formData.password,
-      });
+      },{withCredentials: true});
+      setUserData(response.data.user);
 
       const { user, token, message } = response.data;
 
@@ -46,13 +54,16 @@ const Login = () => {
 
       alert(message || "Login successful!");
 
-      if (user.role === "Admin") {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/dashboard");
-      }
+    const hasAssistantProfile = user.assistantName && user.assistantImage;
+
+    if (hasAssistantProfile) {
+      navigate("/dashboard");
+    } else {
+      navigate("/customize");
+    }
     } catch (error) {
       console.error("Login error", error);
+      setUserData(null);
 
       alert(
         error.response?.data?.message ||
