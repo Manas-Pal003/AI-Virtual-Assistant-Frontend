@@ -8,6 +8,7 @@ function UserContextProvider({ children }) {
     const serverUrl = "http://localhost:8000/api";
     const [userData, setUserData] = useState(null);
     const [loadingUser, setLoadingUser] = useState(true);
+    
 
     const handleCurrentUser = async () => {
     try {
