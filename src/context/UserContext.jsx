@@ -5,7 +5,7 @@ import axiosClient from "../api/axiosClient";
 const UserContext = createContext();
 
 function UserContextProvider({ children }) {
-    const serverUrl = "http://localhost:8000/api";
+    const serverUrl = `http://${window.location.hostname}:8000/api`;
     const [userData, setUserData] = useState(null);
     const [loadingUser, setLoadingUser] = useState(true);
     

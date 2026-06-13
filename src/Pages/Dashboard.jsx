@@ -7,13 +7,14 @@ import {
   MicOff,
   Send,
   Sparkles,
+  Trash2,
   User,
   Volume2,
 } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { UserContext } from "../context/UserContext";
 
-const API_URL = "http://localhost:8000";
+const API_URL = `http://${window.location.hostname}:8000`;
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ const Dashboard = () => {
 
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [messagesInitialized, setMessagesInitialized] = useState(false);
   
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(
@@ -37,6 +39,8 @@ const Dashboard = () => {
 
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const activeUtteranceRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const assistantName = userData?.assistantName || "Assistant";
   const assistantImage = userData?.assistantImage
@@ -111,74 +115,147 @@ const Dashboard = () => {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (userData?.history && !messagesInitialized) {
+      if (userData.history.length > 0) {
+        setMessages(userData.history);
+      }
+      setMessagesInitialized(true);
+    }
+  }, [userData, messagesInitialized]);
+
+  const handleClearChat = async () => {
+    if (!window.confirm("Are you sure you want to clear your chat history?")) return;
+
+    try {
+      setIsLoading(true);
+      await axiosClient.post("/users/clear-history");
+      setMessages([
+        {
+          role: "assistant",
+          text: "Hello! I am your AI assistant. You can type or use your voice to talk with me.",
+        },
+      ]);
+      setUserData((prev) => ({
+        ...prev,
+        history: []
+      }));
+    } catch (error) {
+      console.error("Failed to clear chat history:", error);
+      alert("Failed to clear chat history. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
 
-    window.speechSynthesis.cancel();
+    try {
+      window.speechSynthesis.resume();
+      window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US";
-    utterance.rate = 1.0;
-    utterance.pitch = 1.05; // Slightly higher pitch for standard female clarity
+      const utterance = new SpeechSynthesisUtterance(text);
+      activeUtteranceRef.current = utterance; // Keep reference to prevent GC
 
-    const allVoices = window.speechSynthesis.getVoices();
-    
-    // 1. Try to find the user's preferred selected voice
-    let voice = allVoices.find((v) => v.name === selectedVoiceName);
+      utterance.lang = "en-US";
+      utterance.rate = 1.0;
+      utterance.pitch = 1.05; // Slightly higher pitch for standard female clarity
 
-    // 2. Fallback to auto-select female voice if preferred not found
-    if (!voice) {
-      const femaleVoiceIdentifiers = [
-        "zira",
-        "samantha",
-        "hazel",
-        "victoria",
-        "susan",
-        "karen",
-        "moira",
-        "tessa",
-        "veena",
-        "eva",
-        "sally",
-        "female",
-        "google us english",
-        "google uk english female"
-      ];
-      voice = allVoices.find((v) => {
-        const name = v.name.toLowerCase();
-        const lang = v.lang.toLowerCase();
-        return (lang.startsWith("en-") || lang.startsWith("en_") || lang === "en") &&
-          femaleVoiceIdentifiers.some((id) => name.includes(id));
-      });
+      utterance.onend = () => {
+        activeUtteranceRef.current = null;
+      };
+      utterance.onerror = () => {
+        activeUtteranceRef.current = null;
+      };
+
+      const allVoices = window.speechSynthesis.getVoices();
+      
+      // 1. Try to find the user's preferred selected voice
+      let voice = allVoices.find((v) => v.name === selectedVoiceName);
+
+      // 2. Fallback to auto-select female voice if preferred not found
+      if (!voice) {
+        const femaleVoiceIdentifiers = [
+          "zira",
+          "samantha",
+          "hazel",
+          "victoria",
+          "susan",
+          "karen",
+          "moira",
+          "tessa",
+          "veena",
+          "eva",
+          "sally",
+          "female",
+          "google us english",
+          "google uk english female"
+        ];
+        voice = allVoices.find((v) => {
+          const name = v.name.toLowerCase();
+          const lang = v.lang.toLowerCase();
+          return (lang.startsWith("en-") || lang.startsWith("en_") || lang === "en") &&
+            femaleVoiceIdentifiers.some((id) => name.includes(id));
+        });
+      }
+
+      if (voice) {
+        utterance.voice = voice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error("Text to speech error:", err);
     }
-
-    if (voice) {
-      utterance.voice = voice;
-    }
-
-    window.speechSynthesis.speak(utterance);
   };
 
   const speakVoicePreview = (voiceName) => {
     if (!window.speechSynthesis) return;
 
-    window.speechSynthesis.cancel();
+    try {
+      window.speechSynthesis.resume();
+      window.speechSynthesis.cancel();
 
-    const cleanName = voiceName.split(" - ")[0];
-    const utterance = new SpeechSynthesisUtterance(`Hi! I am now using ${cleanName}`);
-    utterance.lang = "en-US";
-    utterance.rate = 1.0;
-    utterance.pitch = 1.05;
+      const cleanName = voiceName.split(" - ")[0];
+      const utterance = new SpeechSynthesisUtterance(`Hi! I am now using ${cleanName}`);
+      activeUtteranceRef.current = utterance; // Keep reference to prevent GC
 
-    const allVoices = window.speechSynthesis.getVoices();
-    const voice = allVoices.find((v) => v.name === voiceName);
+      utterance.lang = "en-US";
+      utterance.rate = 1.0;
+      utterance.pitch = 1.05;
 
-    if (voice) {
-      utterance.voice = voice;
+      utterance.onend = () => {
+        activeUtteranceRef.current = null;
+      };
+      utterance.onerror = () => {
+        activeUtteranceRef.current = null;
+      };
+
+      const allVoices = window.speechSynthesis.getVoices();
+      const voice = allVoices.find((v) => v.name === voiceName);
+
+      if (voice) {
+        utterance.voice = voice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error("Voice preview error:", err);
     }
-
-    window.speechSynthesis.speak(utterance);
   };
+
+  const cleanAssistantText = (text) => {
+  if (!text) return "";
+
+  return text
+    .replace(/\*\*/g, "")
+    .replace(/###/g, "")
+    .replace(/##/g, "")
+    .replace(/#/g, "")
+    .replace(/\*/g, "")
+    .trim();
+};
 
   const handleSendMessage = async (inputText = message) => {
     const finalMessage = inputText.trim();
@@ -197,13 +274,18 @@ const Dashboard = () => {
       setIsLoading(true);
 
       const response = await axiosClient.post("/assistant/ask", {
-  message: finalMessage,
-});
+        message: finalMessage,
+        history: [...messages, userMessage],
+        assistantName: assistantName,
+      });
 
-      const reply =
-        response.data.reply ||
-        response.data.message ||
-        "I received your message, but I could not generate a reply.";
+      const rawReply =
+  response.data.reply ||
+  response.data.response ||
+  response.data.message ||
+  "I received your message, but I could not generate a reply.";
+
+const reply = cleanAssistantText(rawReply);
 
       const assistantMessage = {
         role: "assistant",
@@ -213,9 +295,7 @@ const Dashboard = () => {
       setMessages((prev) => [...prev, assistantMessage]);
       speakText(reply);
 
-      if (response.data.type === "command" && response.data.url) {
-        window.open(response.data.url, "_blank");
-      }
+      // URL opening is now handled directly by the local Node.js backend to prevent browser popup blocker issues.
     } catch (error) {
   console.error("AI chat error full:", error);
   console.error("Status:", error.response?.status);
@@ -245,33 +325,87 @@ const Dashboard = () => {
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser. Use Chrome.");
+      alert("Speech recognition is not supported in this browser. Please use Google Chrome.");
       return;
     }
 
-    const recognition = new SpeechRecognition();
-
-    recognition.lang = "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.start();
-    setIsListening(true);
-
-    recognition.onresult = (event) => {
-      const voiceText = event.results[0][0].transcript;
-      setMessage(voiceText);
-      handleSendMessage(voiceText);
-    };
-
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error);
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
       setIsListening(false);
-    };
+      return;
+    }
 
-    recognition.onend = () => {
+    try {
+      window.speechSynthesis?.cancel();
+
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+
+      recognition.lang = "en-IN"; // Keeping en-IN for optimal local accent and name recognition
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      let finalTranscript = "";
+
+      recognition.onstart = () => {
+        console.log("Speech recognition started");
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event) => {
+        let interimTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        const currentText = finalTranscript || interimTranscript;
+        setMessage(currentText);
+
+        if (finalTranscript.trim()) {
+          recognition.stop();
+          handleSendMessage(finalTranscript.trim());
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+
+        if (event.error === "not-allowed") {
+          alert("Microphone permission is blocked. Please allow microphone access in browser settings.");
+        } else if (event.error === "no-speech") {
+          alert("No speech detected. Please speak clearly and try again.");
+        } else if (event.error === "audio-capture") {
+          alert("No microphone found. Please check your microphone.");
+        } else if (event.error === "network") {
+          alert("Speech recognition network error. Please check your internet connection.");
+        }
+
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognition.onend = () => {
+        console.log("Speech recognition ended");
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognition.start();
+    } catch (error) {
+      console.error("Speech recognition start error:", error);
       setIsListening(false);
-    };
+      recognitionRef.current = null;
+    }
   };
 
   const handleLogout = async () => {
@@ -394,6 +528,15 @@ const Dashboard = () => {
               Customize Assistant
             </button>
 
+            {/* Clear Chat Button */}
+            <button
+              onClick={handleClearChat}
+              className="mt-3 w-full h-12 rounded-2xl border border-red-500/20 hover:border-red-500/50 hover:bg-red-500/5 text-sm font-semibold flex items-center justify-center gap-2 transition duration-300 cursor-pointer text-red-300 hover:text-red-200"
+            >
+              <Trash2 size={16} />
+              Clear Chat History
+            </button>
+
             {/* Voice Selector */}
             {voices.length > 0 && (
               <div className="mt-5 w-full text-left border-t border-white/5 pt-4">
@@ -465,7 +608,7 @@ const Dashboard = () => {
                     )}
 
                     <div
-                      className={`max-w-[78%] rounded-[24px] px-5 py-3.5 text-sm sm:text-base leading-relaxed shadow-lg ${
+                      className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[24px] px-5 py-3.5 text-sm sm:text-base leading-relaxed shadow-lg ${
                         isUser
                           ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/5"
                           : "bg-white/5 border border-white/10 text-slate-100 rounded-tl-sm"
