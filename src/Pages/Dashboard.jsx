@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bot,
+  ExternalLink,
   LogOut,
   Mic,
   MicOff,
@@ -290,10 +291,20 @@ const reply = cleanAssistantText(rawReply);
       const assistantMessage = {
         role: "assistant",
         text: reply,
+        url: response.data.url || null,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
       speakText(reply);
+
+      // Attempt to open on client-side browser if returned
+      if (response.data.url) {
+        try {
+          window.open(response.data.url, "_blank");
+        } catch (err) {
+          console.error("Popup window open blocked or failed on client-side:", err);
+        }
+      }
 
       // URL opening is now handled directly by the local Node.js backend to prevent browser popup blocker issues.
     } catch (error) {
@@ -608,13 +619,32 @@ const reply = cleanAssistantText(rawReply);
                     )}
 
                     <div
-                      className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[24px] px-5 py-3.5 text-sm sm:text-base leading-relaxed shadow-lg ${
+                      className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[24px] px-5 py-3.5 text-sm sm:text-base leading-relaxed shadow-lg flex flex-col gap-2 ${
                         isUser
                           ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/5"
                           : "bg-white/5 border border-white/10 text-slate-100 rounded-tl-sm"
                       }`}
                     >
-                      {item.text}
+                      <span>{item.text}</span>
+                      {item.url && (
+                        <div className="mt-2 pt-2 border-t border-white/10 flex flex-col gap-1.5 w-full">
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 text-xs font-bold transition-all duration-300 active:scale-[0.97] w-fit"
+                          >
+                            <ExternalLink size={13} className="shrink-0" />
+                            <span>
+                              {item.url.includes("youtube.com")
+                                ? "Watch on YouTube"
+                                : item.url.includes("google.com/search")
+                                ? "Open Google Search"
+                                : "Open Link"}
+                            </span>
+                          </a>
+                        </div>
+                      )}
                     </div>
 
                     {isUser && (
