@@ -13,6 +13,8 @@ import {
   Volume2,
   Menu,
   X,
+  Power,
+  ShieldAlert,
 } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { UserContext } from "../context/UserContext";
@@ -49,6 +51,9 @@ const Dashboard = () => {
   const wakeWordRecRef = useRef(null);
 
   const [isWakeWordListening, setIsWakeWordListening] = useState(false);
+  const [isShutdownActive, setIsShutdownActive] = useState(false);
+  const [shutdownCountdown, setShutdownCountdown] = useState(10);
+  const shutdownTimerRef = useRef(null);
 
   const assistantName = userData?.assistantName || "Assistant";
   const assistantImage = userData?.assistantImage
@@ -224,6 +229,71 @@ const Dashboard = () => {
       setIsWakeWordListening(false);
     };
   }, [isListening, assistantName, userData]);
+
+  useEffect(() => {
+    return () => {
+      if (shutdownTimerRef.current) {
+        clearInterval(shutdownTimerRef.current);
+      }
+    };
+  }, []);
+
+  const startShutdownCountdown = () => {
+    if (shutdownTimerRef.current) {
+      clearInterval(shutdownTimerRef.current);
+    }
+    setShutdownCountdown(10);
+    setIsShutdownActive(true);
+    
+    shutdownTimerRef.current = setInterval(() => {
+      setShutdownCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(shutdownTimerRef.current);
+          shutdownTimerRef.current = null;
+          setIsShutdownActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const cancelShutdownCountdown = (voiceReplyText) => {
+    if (shutdownTimerRef.current) {
+      clearInterval(shutdownTimerRef.current);
+      shutdownTimerRef.current = null;
+    }
+    setIsShutdownActive(false);
+    setShutdownCountdown(10);
+    if (voiceReplyText) {
+      speakText(voiceReplyText);
+    }
+  };
+
+  const handleAbortShutdown = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axiosClient.post("/assistant/cancel-shutdown");
+      
+      const rawReply = response.data.reply || "Shutdown successfully aborted.";
+      const reply = cleanAssistantText(rawReply);
+      
+      const assistantMessage = {
+        role: "assistant",
+        text: reply,
+      };
+      
+      setMessages((prev) => [...prev, assistantMessage]);
+      cancelShutdownCountdown(reply);
+    } catch (error) {
+      console.error("Failed to abort shutdown:", error);
+      const errorMsg = error.response?.data?.message || "Failed to abort shutdown. No active shutdown might be scheduled.";
+      alert(errorMsg);
+      cancelShutdownCountdown();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleClearChat = async () => {
     if (!window.confirm("Are you sure you want to clear your chat history?")) return;
@@ -453,7 +523,11 @@ const Dashboard = () => {
       setMessages((prev) => [...prev, assistantMessage]);
       speakText(reply);
 
-
+      if (response.data.type === "shutdown") {
+        startShutdownCountdown();
+      } else if (response.data.type === "cancel-shutdown") {
+        cancelShutdownCountdown();
+      }
 
       // URL opening is now handled directly by the local Node.js backend to prevent browser popup blocker issues.
     } catch (error) {
@@ -914,6 +988,61 @@ const Dashboard = () => {
           </div>
         </section>
       </main>
+
+      {isShutdownActive && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-2xl z-50 flex flex-col items-center justify-center animate-fade-in select-none">
+          {/* Animated glowing backdrop circles */}
+          <div className="absolute top-[20%] left-[30%] w-[350px] h-[350px] bg-red-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+          <div className="absolute bottom-[20%] right-[30%] w-[350px] h-[350px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+
+          <div className="relative flex flex-col items-center max-w-lg w-full text-center p-8 bg-slate-900/60 border border-red-500/20 rounded-[32px] backdrop-blur-3xl shadow-2xl ring-2 ring-red-500/5 overflow-hidden mx-4">
+            {/* Red alert scanner bar */}
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-600 via-orange-500 to-red-600 animate-pulse" />
+
+            <div className="relative w-28 h-28 flex items-center justify-center rounded-3xl bg-red-500/10 border border-red-500/20 text-red-500 mb-6 shadow-lg shadow-red-500/10 animate-bounce">
+              <Power size={52} className="animate-pulse" />
+            </div>
+
+            <h2 className="text-3xl font-extrabold tracking-tight text-white mb-2 uppercase">
+              Shutdown Initiated
+            </h2>
+            <p className="text-slate-400 text-sm max-w-sm mb-8 leading-relaxed">
+              System is scheduled to power off in {shutdownCountdown} seconds. Please save any unsaved work immediately.
+            </p>
+
+            {/* Premium Countdown circle/number */}
+            <div className="relative flex items-center justify-center w-48 h-48 mb-10 rounded-full bg-slate-950 border border-white/5 shadow-inner">
+              {/* Spinning background track */}
+              <div className="absolute inset-0.5 rounded-full border border-red-500/10" />
+              {/* Outer pulsing ring */}
+              <div className="absolute inset-[-4px] rounded-full border-2 border-red-500/40 animate-ping opacity-25" />
+              <div className="absolute inset-[-8px] rounded-full border border-purple-500/30 opacity-10" />
+
+              <div className="flex flex-col items-center">
+                <span className="text-7xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-red-500 via-orange-400 to-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.3)] select-none">
+                  {shutdownCountdown}
+                </span>
+                <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest mt-1">
+                  Seconds
+                </span>
+              </div>
+            </div>
+
+            {/* Glowing Emergency Abort Button */}
+            <button
+              onClick={handleAbortShutdown}
+              disabled={isLoading}
+              className="relative w-full h-14 rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white font-extrabold text-base tracking-wide flex items-center justify-center gap-3 shadow-lg shadow-red-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer group"
+            >
+              {/* Glow effect */}
+              <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-red-600 to-orange-500 rounded-2xl blur-[12px] opacity-40 group-hover:opacity-70 transition duration-300 -z-10" />
+              
+              <ShieldAlert size={20} className="group-hover:rotate-12 transition duration-300" />
+              <span>CANCEL SYSTEM SHUTDOWN</span>
+            </button>
+          </div>
+        </div>
+      )}
       
       {isListening && (
         <div 
