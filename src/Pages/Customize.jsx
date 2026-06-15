@@ -124,15 +124,17 @@ const Customize = () => {
   const previewImage = customPreview || selectedImage;
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-white relative overflow-y-auto px-3 sm:px-6 py-6 sm:py-12 flex flex-col items-center justify-center animate-fade-in">
+    <div className="min-h-screen w-full bg-slate-950 text-white relative px-3 sm:px-6 py-6 sm:py-12 flex flex-col items-center justify-center animate-fade-in">
       {/* Background decoration elements */}
-      <div className="absolute top-[-180px] left-[-160px] w-[480px] h-[480px] bg-cyan-500/20 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-[-180px] right-[-150px] w-[520px] h-[520px] bg-purple-500/20 rounded-full blur-[150px] pointer-events-none" />
-      <div className="absolute top-[35%] left-[50%] w-[420px] h-[420px] bg-blue-500/10 rounded-full blur-[150px] -translate-x-1/2 pointer-events-none" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-180px] left-[-160px] w-[480px] h-[480px] bg-cyan-500/20 rounded-full blur-[140px]" />
+        <div className="absolute bottom-[-180px] right-[-150px] w-[520px] h-[520px] bg-purple-500/20 rounded-full blur-[150px]" />
+        <div className="absolute top-[35%] left-[50%] w-[420px] h-[420px] bg-blue-500/10 rounded-full blur-[150px] -translate-x-1/2" />
+      </div>
 
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-6xl rounded-3xl sm:rounded-[34px] bg-slate-900/40 border border-white/10 backdrop-blur-2xl shadow-2xl p-4 sm:p-8 lg:p-10"
+        className="relative z-10 w-full max-w-6xl rounded-[24px] sm:rounded-[34px] bg-slate-900/40 border border-white/10 backdrop-blur-2xl shadow-2xl p-3.5 sm:p-8 lg:p-10"
       >
         {/* Header section */}
         <div className="text-center max-w-3xl mx-auto mb-8 sm:mb-10">

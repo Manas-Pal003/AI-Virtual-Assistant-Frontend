@@ -46,6 +46,9 @@ const Dashboard = () => {
   const chatContainerRef = useRef(null);
   const activeUtteranceRef = useRef(null);
   const recognitionRef = useRef(null);
+  const wakeWordRecRef = useRef(null);
+
+  const [isWakeWordListening, setIsWakeWordListening] = useState(false);
 
   const assistantName = userData?.assistantName || "Assistant";
   const assistantImage = userData?.assistantImage
@@ -129,6 +132,99 @@ const Dashboard = () => {
     }
   }, [userData, messagesInitialized]);
 
+  // Background wake word listener
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition || isListening || !userData) {
+      if (wakeWordRecRef.current) {
+        try {
+          wakeWordRecRef.current.abort();
+        } catch (e) {}
+        wakeWordRecRef.current = null;
+      }
+      setIsWakeWordListening(false);
+      return;
+    }
+
+    let active = true;
+    let recognition = null;
+
+    const startPassiveListening = () => {
+      if (!active || isListening) return;
+
+      try {
+        recognition = new SpeechRecognition();
+        wakeWordRecRef.current = recognition;
+        recognition.lang = "en-IN";
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+          console.log("Wake word listener started");
+          setIsWakeWordListening(true);
+        };
+
+        recognition.onresult = (event) => {
+          if (isListening) return;
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript.toLowerCase();
+            const cleanName = assistantName.toLowerCase().trim();
+
+            // Match exact wake word name or "hey [name]"
+            if (transcript.includes(cleanName) || transcript.includes("hey " + cleanName) || (cleanName === "assistant" && transcript.includes("assistant"))) {
+              console.log("Wake word detected:", cleanName);
+              
+              // Stop background listener
+              recognition.abort();
+              wakeWordRecRef.current = null;
+              setIsWakeWordListening(false);
+              
+              // Speak acknowledgment and start voice capture
+              speakText(`Yes?`);
+              setTimeout(() => {
+                handleVoiceInput();
+              }, 600);
+              return;
+            }
+          }
+        };
+
+        recognition.onerror = (e) => {
+          console.log("Wake word listener error:", e.error);
+        };
+
+        recognition.onend = () => {
+          console.log("Wake word listener ended");
+          setIsWakeWordListening(false);
+          if (active && !isListening) {
+            setTimeout(startPassiveListening, 1000);
+          }
+        };
+
+        recognition.start();
+      } catch (err) {
+        console.error("Failed to start wake word listener:", err);
+      }
+    };
+
+    const timer = setTimeout(startPassiveListening, 2000);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      if (recognition) {
+        try {
+          recognition.abort();
+        } catch (e) {}
+      }
+      wakeWordRecRef.current = null;
+      setIsWakeWordListening(false);
+    };
+  }, [isListening, assistantName, userData]);
+
   const handleClearChat = async () => {
     if (!window.confirm("Are you sure you want to clear your chat history?")) return;
 
@@ -163,9 +259,100 @@ const Dashboard = () => {
       const utterance = new SpeechSynthesisUtterance(text);
       activeUtteranceRef.current = utterance; // Keep reference to prevent GC
 
-      utterance.lang = "en-US";
-      utterance.rate = 1.0;
-      utterance.pitch = 1.05; // Slightly higher pitch for standard female clarity
+      const allVoices = window.speechSynthesis.getVoices();
+      
+      let voice = null;
+      let pitch = 1.05; // default pitch
+      let rate = 1.0;   // default rate
+
+      const isJarvis = assistantName.toLowerCase().trim() === "jarvis";
+      const isFriday = assistantName.toLowerCase().trim() === "friday";
+
+      if (isJarvis) {
+        // Search for British/UK Male voice (classy British accent like Jarvis)
+        voice = allVoices.find((v) => {
+          const name = v.name.toLowerCase();
+          const lang = v.lang.toLowerCase();
+          const isUK = lang.includes("gb") || lang.includes("uk") || name.includes("uk") || name.includes("british") || name.includes("england");
+          const isMale = name.includes("male") || name.includes("george") || name.includes("david") || name.includes("microsoft david");
+          return isUK && isMale;
+        });
+
+        // Fallback 1: Any Male voice
+        if (!voice) {
+          voice = allVoices.find((v) => {
+            const name = v.name.toLowerCase();
+            return name.includes("male") || name.includes("david") || name.includes("george") || name.includes("google us english male");
+          });
+        }
+
+        // Fallback 2: Any British/UK voice
+        if (!voice) {
+          voice = allVoices.find((v) => {
+            const name = v.name.toLowerCase();
+            const lang = v.lang.toLowerCase();
+            return lang.includes("gb") || lang.includes("uk") || name.includes("uk") || name.includes("british");
+          });
+        }
+
+        pitch = 0.88; // Deep, calm class signature
+        rate = 0.95;  // Calm, deliberate pacing
+      } else if (isFriday) {
+        // Search for Irish voice (Friday is Irish in MCU)
+        voice = allVoices.find((v) => {
+          const name = v.name.toLowerCase();
+          const lang = v.lang.toLowerCase();
+          return lang.includes("ie") || name.includes("irish") || name.includes("ireland");
+        });
+
+        // Fallback 1: British/UK female voice (Hazel or Google UK English Female)
+        if (!voice) {
+          voice = allVoices.find((v) => {
+            const name = v.name.toLowerCase();
+            const lang = v.lang.toLowerCase();
+            const isUK = lang.includes("gb") || lang.includes("uk") || name.includes("uk") || name.includes("british");
+            const isFemale = name.includes("hazel") || name.includes("female") || name.includes("zira") || name.includes("samantha");
+            return isUK && isFemale;
+          });
+        }
+
+        // Fallback 2: Any standard female voice
+        if (!voice) {
+          const femaleVoiceIdentifiers = ["zira", "samantha", "hazel", "victoria", "susan", "karen", "female"];
+          voice = allVoices.find((v) => {
+            const name = v.name.toLowerCase();
+            const lang = v.lang.toLowerCase();
+            return (lang.startsWith("en-") || lang === "en") && femaleVoiceIdentifiers.some((id) => name.includes(id));
+          });
+        }
+
+        pitch = 1.05; // Warm, melodious signature
+        rate = 1.02;  // Quick, responsive pacing
+      } else {
+        // Standard voice selection flow
+        voice = allVoices.find((v) => v.name === selectedVoiceName);
+
+        if (!voice) {
+          const femaleVoiceIdentifiers = [
+            "zira", "samantha", "hazel", "victoria", "susan", "karen", "moira", 
+            "tessa", "veena", "eva", "sally", "female", "google us english", "google uk english female"
+          ];
+          voice = allVoices.find((v) => {
+            const name = v.name.toLowerCase();
+            const lang = v.lang.toLowerCase();
+            return (lang.startsWith("en-") || lang.startsWith("en_") || lang === "en") &&
+              femaleVoiceIdentifiers.some((id) => name.includes(id));
+          });
+        }
+      }
+
+      utterance.lang = voice ? voice.lang : (isJarvis ? "en-GB" : (isFriday ? "en-IE" : "en-US"));
+      utterance.rate = rate;
+      utterance.pitch = pitch;
+
+      if (voice) {
+        utterance.voice = voice;
+      }
 
       utterance.onend = () => {
         activeUtteranceRef.current = null;
@@ -173,41 +360,6 @@ const Dashboard = () => {
       utterance.onerror = () => {
         activeUtteranceRef.current = null;
       };
-
-      const allVoices = window.speechSynthesis.getVoices();
-
-      // 1. Try to find the user's preferred selected voice
-      let voice = allVoices.find((v) => v.name === selectedVoiceName);
-
-      // 2. Fallback to auto-select female voice if preferred not found
-      if (!voice) {
-        const femaleVoiceIdentifiers = [
-          "zira",
-          "samantha",
-          "hazel",
-          "victoria",
-          "susan",
-          "karen",
-          "moira",
-          "tessa",
-          "veena",
-          "eva",
-          "sally",
-          "female",
-          "google us english",
-          "google uk english female"
-        ];
-        voice = allVoices.find((v) => {
-          const name = v.name.toLowerCase();
-          const lang = v.lang.toLowerCase();
-          return (lang.startsWith("en-") || lang.startsWith("en_") || lang === "en") &&
-            femaleVoiceIdentifiers.some((id) => name.includes(id));
-        });
-      }
-
-      if (voice) {
-        utterance.voice = voice;
-      }
 
       window.speechSynthesis.speak(utterance);
     } catch (err) {
@@ -360,6 +512,7 @@ const Dashboard = () => {
 
       recognition.onstart = () => {
         console.log("Speech recognition started");
+        setMessage(""); // Reset transcription text state when starting voice recognition
         setIsListening(true);
       };
 
@@ -430,14 +583,14 @@ const Dashboard = () => {
   };
 
   return (
-    <div style={{ height: "100vh", overflow: "hidden" }} className="w-full bg-slate-950 text-white relative flex flex-col animate-fade-in">
+    <div style={{ height: "100dvh", minHeight: "100dvh", overflow: "hidden" }} className="w-full bg-slate-950 text-white relative flex flex-col animate-fade-in">
       {/* Background decoration elements */}
       <div className="absolute top-[-180px] left-[-160px] w-[520px] h-[520px] bg-cyan-500/20 rounded-full blur-[150px] pointer-events-none" />
       <div className="absolute bottom-[-180px] right-[-160px] w-[560px] h-[560px] bg-purple-500/20 rounded-full blur-[160px] pointer-events-none" />
       <div className="absolute top-[35%] left-[45%] w-[420px] h-[420px] bg-blue-500/10 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Header section */}
-      <header className="h-20 shrink-0 border-b border-white/10 bg-slate-900/40 backdrop-blur-xl z-20 flex items-center relative">
+      <header className="h-16 sm:h-20 shrink-0 border-b border-white/10 bg-slate-900/40 backdrop-blur-xl z-20 flex items-center relative">
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Mobile Menu Toggle Button */}
@@ -494,7 +647,7 @@ const Dashboard = () => {
         {/* Sidebar */}
         <aside
           className={`
-            fixed inset-y-0 left-0 z-50 w-[320px] bg-slate-950/95 border-r border-white/10 p-6 shadow-2xl flex flex-col justify-start overflow-y-auto transition-transform duration-300 ease-in-out
+            fixed inset-y-0 left-0 z-50 w-[280px] sm:w-[320px] bg-slate-950/95 border-r border-white/10 p-5 sm:p-6 shadow-2xl flex flex-col justify-start overflow-y-auto transition-transform duration-300 ease-in-out
             lg:relative lg:inset-auto lg:z-10 lg:w-full lg:h-full lg:translate-x-0 lg:bg-slate-900/40 lg:border lg:rounded-[32px] lg:backdrop-blur-2xl
             ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
           `}
@@ -534,24 +687,24 @@ const Dashboard = () => {
             </p>
 
             {/* Sidebar Badges */}
-            <div className="mt-6 w-full grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-colors duration-300 text-center">
+            <div className="mt-6 w-full grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-3 sm:p-4 hover:bg-white/10 transition-colors duration-300 text-center">
                 <Sparkles className="mx-auto text-cyan-400" size={24} />
-                <p className="mt-2 text-xs font-semibold text-slate-300">Smart Chat</p>
+                <p className="mt-2 text-[11px] sm:text-xs font-semibold text-slate-300">Smart Chat</p>
               </div>
 
-              <div className="rounded-2xl bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-colors duration-300 text-center">
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-3 sm:p-4 hover:bg-white/10 transition-colors duration-300 text-center">
                 <Volume2 className="mx-auto text-purple-400" size={24} />
-                <p className="mt-2 text-xs font-semibold text-slate-300">Voice Reply</p>
+                <p className="mt-2 text-[11px] sm:text-xs font-semibold text-slate-300">Voice Reply</p>
               </div>
             </div>
 
             {/* Speak Button */}
             <button
               onClick={handleVoiceInput}
-              className={`mt-6 w-full h-14 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all duration-300 shadow-lg cursor-pointer ${isListening
-                  ? "bg-red-600 shadow-red-600/30 text-white animate-pulse"
-                  : "bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 shadow-blue-500/20 text-white hover:scale-[1.02] hover:shadow-cyan-500/25 active:scale-[0.98]"
+              className={`mt-6 w-full h-12 sm:h-14 rounded-xl sm:rounded-2xl font-bold flex items-center justify-center gap-3 transition-all duration-300 shadow-lg cursor-pointer ${isListening
+                ? "bg-red-600 shadow-red-600/30 text-white animate-pulse"
+                : "bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 shadow-blue-500/20 text-white hover:scale-[1.02] hover:shadow-cyan-500/25 active:scale-[0.98]"
                 }`}
             >
               {isListening ? <MicOff size={20} /> : <Mic size={20} />}
@@ -561,7 +714,7 @@ const Dashboard = () => {
             {/* Customize Profile Button */}
             <button
               onClick={() => navigate("/customize")}
-              className="mt-3 w-full h-12 rounded-2xl border border-white/10 hover:border-cyan-500/50 hover:bg-white/5 text-sm font-semibold flex items-center justify-center gap-2 transition duration-300 cursor-pointer text-slate-300 hover:text-white"
+              className="mt-3 w-full h-11 sm:h-12 rounded-xl sm:rounded-2xl border border-white/10 hover:border-cyan-500/50 hover:bg-white/5 text-sm font-semibold flex items-center justify-center gap-2 transition duration-300 cursor-pointer text-slate-300 hover:text-white"
             >
               <User size={16} />
               Customize Assistant
@@ -570,11 +723,18 @@ const Dashboard = () => {
             {/* Clear Chat Button */}
             <button
               onClick={handleClearChat}
-              className="mt-3 w-full h-12 rounded-2xl border border-red-500/20 hover:border-red-500/50 hover:bg-red-500/5 text-sm font-semibold flex items-center justify-center gap-2 transition duration-300 cursor-pointer text-red-300 hover:text-red-200"
+              className="mt-3 w-full h-11 sm:h-12 rounded-xl sm:rounded-2xl border border-red-500/20 hover:border-red-500/5 text-sm font-semibold flex items-center justify-center gap-2 transition duration-300 cursor-pointer text-red-300 hover:text-red-200"
             >
               <Trash2 size={16} />
               Clear Chat History
             </button>
+
+            {isWakeWordListening && (
+              <p className="mt-3 text-[10px] text-cyan-400 font-bold tracking-wider uppercase animate-pulse flex items-center gap-1.5 justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                Say "Hey {assistantName}" to wake up
+              </p>
+            )}
 
             {/* Voice Selector */}
             {voices.length > 0 && (
@@ -589,7 +749,7 @@ const Dashboard = () => {
                     localStorage.setItem("preferredVoice", e.target.value);
                     speakVoicePreview(e.target.value);
                   }}
-                  className="w-full h-11 px-3 rounded-xl border border-white/10 bg-slate-950 text-slate-300 text-sm outline-none focus:border-cyan-500 transition duration-300 cursor-pointer"
+                  className="w-full h-10 sm:h-11 px-3 rounded-xl border border-white/10 bg-slate-950 text-slate-300 text-sm outline-none focus:border-cyan-500 transition duration-300 cursor-pointer"
                 >
                   {voices.map((v) => (
                     <option key={v.name} value={v.name} className="bg-slate-950 text-slate-300">
@@ -613,9 +773,17 @@ const Dashboard = () => {
               </p>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-1.5 text-xs font-semibold tracking-wide">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-              Online
+            <div className="hidden sm:flex items-center gap-3">
+              {isWakeWordListening && (
+                <div className="flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-3.5 py-1.5 text-xs font-semibold tracking-wide">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  Say "Hey {assistantName}"
+                </div>
+              )}
+              <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-1.5 text-xs font-semibold tracking-wide">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                Online
+              </div>
             </div>
           </div>
 
@@ -647,8 +815,8 @@ const Dashboard = () => {
 
                     <div
                       className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[24px] px-5 py-3.5 text-sm sm:text-base leading-relaxed shadow-lg flex flex-col gap-2 ${isUser
-                          ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/5"
-                          : "bg-white/5 border border-white/10 text-slate-100 rounded-tl-sm"
+                        ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/5"
+                        : "bg-white/5 border border-white/10 text-slate-100 rounded-tl-sm"
                         }`}
                     >
                       <span>{item.text}</span>
@@ -710,13 +878,13 @@ const Dashboard = () => {
 
           {/* Chat Input Controls */}
           <div className="p-4 sm:p-5 border-t border-white/10 bg-transparent shrink-0 rounded-b-[30px]">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={handleVoiceInput}
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 cursor-pointer shrink-0 ${isListening
-                    ? "bg-red-600 text-white shadow-lg shadow-red-600/30 animate-pulse"
-                    : "bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
+                className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-300 cursor-pointer shrink-0 ${isListening
+                  ? "bg-red-600 text-white shadow-lg shadow-red-600/30 animate-pulse"
+                  : "bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
                   }`}
               >
                 {isListening ? <MicOff size={22} /> : <Mic size={22} />}
@@ -731,14 +899,14 @@ const Dashboard = () => {
                   }
                 }}
                 placeholder="Ask your assistant anything..."
-                className="flex-1 h-14 rounded-2xl bg-white/5 border border-white/10 px-5 outline-none focus:bg-white/10 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all duration-300 text-white placeholder-slate-500"
+                className="flex-1 h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 px-4 sm:px-5 outline-none focus:bg-white/10 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 transition-all duration-300 text-white placeholder-slate-500 text-sm sm:text-base"
               />
 
               <button
                 type="button"
                 onClick={() => handleSendMessage()}
                 disabled={isLoading}
-                className="w-14 h-14 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-[1.03] hover:shadow-cyan-500/25 active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-[1.03] hover:shadow-cyan-500/25 active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
               >
                 <Send size={20} />
               </button>
@@ -746,6 +914,35 @@ const Dashboard = () => {
           </div>
         </section>
       </main>
+      
+      {isListening && (
+        <div 
+          onClick={handleVoiceInput}
+          className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center cursor-pointer animate-fade-in"
+        >
+          <div className="relative flex flex-col items-center gap-6 p-6 max-w-sm w-full text-center">
+            {/* Glowing ring around the soundwave */}
+            <div className="absolute w-[240px] h-[240px] bg-cyan-500/20 rounded-full blur-[40px] animate-pulse pointer-events-none" />
+            
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full overflow-hidden border-2 border-cyan-500/30 shadow-2xl shadow-cyan-500/10 flex items-center justify-center bg-slate-900">
+              <img
+                src={userGif}
+                alt="Listening..."
+                className="w-full h-full object-cover scale-110"
+              />
+            </div>
+            
+            <div className="relative z-10 max-w-xs sm:max-w-md mx-auto">
+              <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-relaxed">
+                {message ? `“${message}”` : "Listening to you..."}
+              </h3>
+              <p className="text-slate-400 mt-3 text-xs sm:text-sm font-medium">
+                {message ? "Transcribing in real-time..." : "Speak clearly. Click anywhere on the screen to cancel."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

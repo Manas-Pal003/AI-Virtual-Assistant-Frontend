@@ -114,12 +114,14 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center px-4 py-8 relative overflow-hidden">
-      <div className="absolute top-[-120px] right-[-120px] w-[380px] h-[380px] bg-cyan-500/30 rounded-full blur-[130px]" />
-      <div className="absolute bottom-[-120px] left-[-120px] w-[380px] h-[380px] bg-purple-500/30 rounded-full blur-[130px]" />
-      <div className="absolute top-1/2 left-1/2 w-[300px] h-[300px] bg-blue-500/20 rounded-full blur-[140px] -translate-x-1/2 -translate-y-1/2" />
+    <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center px-4 py-8 sm:py-12 relative">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-120px] right-[-120px] w-[380px] h-[380px] bg-cyan-500/30 rounded-full blur-[130px]" />
+        <div className="absolute bottom-[-120px] left-[-120px] w-[380px] h-[380px] bg-purple-500/30 rounded-full blur-[130px]" />
+        <div className="absolute top-1/2 left-1/2 w-[300px] h-[300px] bg-blue-500/20 rounded-full blur-[140px] -translate-x-1/2 -translate-y-1/2" />
+      </div>
 
-      <div className="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[32px] overflow-hidden shadow-2xl">
+      <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[32px] overflow-hidden shadow-2xl">
         
         {/* Left Side */}
         <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-cyan-600 via-blue-600 to-purple-800 text-white relative lg:rounded-l-[30px] rounded-t-[30px] lg:rounded-tr-none">
@@ -158,7 +160,7 @@ const Register = () => {
         </div>
 
         {/* Right Side Form (Glassmorphic) */}
-        <div className="p-8 sm:p-12 lg:p-14 bg-slate-950/40 text-white flex flex-col justify-center border-t lg:border-t-0 lg:border-l border-white/10 lg:rounded-r-[30px] rounded-b-[30px] lg:rounded-bl-none">
+        <div className="p-5 sm:p-12 lg:p-14 bg-slate-950/40 text-white flex flex-col justify-center border-t lg:border-t-0 lg:border-l border-white/10 lg:rounded-r-[30px] rounded-b-[30px] lg:rounded-bl-none">
           <div className="mb-8">
             <h2 className="text-3xl font-extrabold tracking-tight text-white">
               Create Account

@@ -105,12 +105,14 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center px-4 relative overflow-hidden">
+    <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center px-4 py-8 sm:py-12 relative">
       {/* Background Glow */}
-      <div className="absolute top-[-120px] left-[-120px] w-[350px] h-[350px] bg-blue-500/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-120px] right-[-120px] w-[350px] h-[350px] bg-purple-500/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-120px] left-[-120px] w-[350px] h-[350px] bg-blue-500/20 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-120px] right-[-120px] w-[350px] h-[350px] bg-purple-500/20 rounded-full blur-[120px]" />
+      </div>
 
-      <div className="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[32px] overflow-hidden shadow-2xl">
+      <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[32px] overflow-hidden shadow-2xl">
 
         {/* Left Side */}
         <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-blue-600 via-blue-700 to-purple-800 text-white relative lg:rounded-l-[30px] rounded-t-[30px] lg:rounded-tr-none">
@@ -135,7 +137,7 @@ const Login = () => {
         </div>
 
         {/* Right Side Form (Glassmorphic) */}
-        <div className="p-8 sm:p-12 lg:p-14 bg-slate-950/40 text-white flex flex-col justify-center border-t lg:border-t-0 lg:border-l border-white/10 lg:rounded-r-[30px] rounded-b-[30px] lg:rounded-bl-none">
+        <div className="p-5 sm:p-12 lg:p-14 bg-slate-950/40 text-white flex flex-col justify-center border-t lg:border-t-0 lg:border-l border-white/10 lg:rounded-r-[30px] rounded-b-[30px] lg:rounded-bl-none">
           <div className="mb-8">
             <h2 className="text-3xl font-extrabold tracking-tight text-white">Login</h2>
             <p className="text-slate-400 mt-2 text-sm sm:text-base">

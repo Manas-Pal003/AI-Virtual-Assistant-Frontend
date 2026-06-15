@@ -32,7 +32,7 @@ const AuthRoute = [
         ]
     },
     {
-        element:<ProtectedRoute  customizeOnly={true}/>,
+        element:<ProtectedRoute />,
         children:[
     {
         path:"/customize",
