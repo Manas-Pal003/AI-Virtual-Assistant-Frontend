@@ -11,9 +11,12 @@ import {
   Trash2,
   User,
   Volume2,
+  Menu,
+  X,
 } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { UserContext } from "../context/UserContext";
+import userGif from "../assets/user.gif";
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
@@ -32,7 +35,8 @@ const Dashboard = () => {
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [messagesInitialized, setMessagesInitialized] = useState(false);
-  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const [voices, setVoices] = useState([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState(
     localStorage.getItem("preferredVoice") || ""
@@ -171,7 +175,7 @@ const Dashboard = () => {
       };
 
       const allVoices = window.speechSynthesis.getVoices();
-      
+
       // 1. Try to find the user's preferred selected voice
       let voice = allVoices.find((v) => v.name === selectedVoiceName);
 
@@ -247,16 +251,16 @@ const Dashboard = () => {
   };
 
   const cleanAssistantText = (text) => {
-  if (!text) return "";
+    if (!text) return "";
 
-  return text
-    .replace(/\*\*/g, "")
-    .replace(/###/g, "")
-    .replace(/##/g, "")
-    .replace(/#/g, "")
-    .replace(/\*/g, "")
-    .trim();
-};
+    return text
+      .replace(/\*\*/g, "")
+      .replace(/###/g, "")
+      .replace(/##/g, "")
+      .replace(/#/g, "")
+      .replace(/\*/g, "")
+      .trim();
+  };
 
   const handleSendMessage = async (inputText = message) => {
     const finalMessage = inputText.trim();
@@ -281,12 +285,12 @@ const Dashboard = () => {
       });
 
       const rawReply =
-  response.data.reply ||
-  response.data.response ||
-  response.data.message ||
-  "I received your message, but I could not generate a reply.";
+        response.data.reply ||
+        response.data.response ||
+        response.data.message ||
+        "I received your message, but I could not generate a reply.";
 
-const reply = cleanAssistantText(rawReply);
+      const reply = cleanAssistantText(rawReply);
 
       const assistantMessage = {
         role: "assistant",
@@ -297,38 +301,31 @@ const reply = cleanAssistantText(rawReply);
       setMessages((prev) => [...prev, assistantMessage]);
       speakText(reply);
 
-      // Attempt to open on client-side browser if returned
-      if (response.data.url) {
-        try {
-          window.open(response.data.url, "_blank");
-        } catch (err) {
-          console.error("Popup window open blocked or failed on client-side:", err);
-        }
-      }
+
 
       // URL opening is now handled directly by the local Node.js backend to prevent browser popup blocker issues.
     } catch (error) {
-  console.error("AI chat error full:", error);
-  console.error("Status:", error.response?.status);
-  console.error("Backend data:", error.response?.data);
+      console.error("AI chat error full:", error);
+      console.error("Status:", error.response?.status);
+      console.error("Backend data:", error.response?.data);
 
-  const fallbackReply =
-    error.response?.data?.message ||
-    error.response?.data?.error ||
-    `AI request failed. Status: ${error.response?.status || "Network Error"}`;
+      const fallbackReply =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        `AI request failed. Status: ${error.response?.status || "Network Error"}`;
 
-  setMessages((prev) => [
-    ...prev,
-    {
-      role: "assistant",
-      text: fallbackReply,
-    },
-  ]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: fallbackReply,
+        },
+      ]);
 
-  speakText(fallbackReply);
-} finally {
-  setIsLoading(false);
-}
+      speakText(fallbackReply);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVoiceInput = () => {
@@ -442,7 +439,15 @@ const reply = cleanAssistantText(rawReply);
       {/* Header section */}
       <header className="h-20 shrink-0 border-b border-white/10 bg-slate-900/40 backdrop-blur-xl z-20 flex items-center relative">
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Mobile Menu Toggle Button */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2.5 rounded-2xl bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 transition duration-300 shrink-0 cursor-pointer"
+            >
+              <Menu size={20} />
+            </button>
+
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20 overflow-hidden ring-2 ring-white/10 shrink-0">
               {assistantImage ? (
                 <img
@@ -476,15 +481,39 @@ const reply = cleanAssistantText(rawReply);
       </header>
 
       {/* Main content grid */}
-      <main className="relative z-10 flex-1 min-h-0 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 overflow-y-auto ">
-        
+      <main className="relative z-10 flex-1 min-h-0 w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 overflow-hidden">
+
+        {/* Backdrop for mobile drawer */}
+        {isSidebarOpen && (
+          <div
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className="rounded-[32px] bg-slate-900/40 border border-white/10 backdrop-blur-2xl p-6 shadow-2xl h-fit lg:h-full flex flex-col items-center justify-between shrink-0 lg:overflow-y-auto w-full">
+        <aside
+          className={`
+            fixed inset-y-0 left-0 z-50 w-[320px] bg-slate-950/95 border-r border-white/10 p-6 shadow-2xl flex flex-col justify-start overflow-y-auto transition-transform duration-300 ease-in-out
+            lg:relative lg:inset-auto lg:z-10 lg:w-full lg:h-full lg:translate-x-0 lg:bg-slate-900/40 lg:border lg:rounded-[32px] lg:backdrop-blur-2xl
+            ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          `}
+        >
+          {/* Mobile Close Button */}
+          <div className="w-full flex justify-end lg:hidden mb-4">
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
           <div className="flex flex-col items-center text-center w-full">
             <div className="relative group">
               {/* Glowing ring around avatar */}
               <div className="absolute -inset-1.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-[38px] blur opacity-40 group-hover:opacity-75 transition duration-1000 group-hover:duration-200 animate-pulse pointer-events-none" />
-              
+
               <div className="relative w-40 h-40 sm:w-44 sm:h-44 rounded-[36px] bg-slate-950 border border-white/10 overflow-hidden shadow-2xl flex items-center justify-center">
                 {assistantImage ? (
                   <img
@@ -520,11 +549,10 @@ const reply = cleanAssistantText(rawReply);
             {/* Speak Button */}
             <button
               onClick={handleVoiceInput}
-              className={`mt-6 w-full h-14 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all duration-300 shadow-lg cursor-pointer ${
-                isListening
+              className={`mt-6 w-full h-14 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all duration-300 shadow-lg cursor-pointer ${isListening
                   ? "bg-red-600 shadow-red-600/30 text-white animate-pulse"
                   : "bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 shadow-blue-500/20 text-white hover:scale-[1.02] hover:shadow-cyan-500/25 active:scale-[0.98]"
-              }`}
+                }`}
             >
               {isListening ? <MicOff size={20} /> : <Mic size={20} />}
               {isListening ? "Listening..." : "Speak Now"}
@@ -600,9 +628,8 @@ const reply = cleanAssistantText(rawReply);
                 return (
                   <div
                     key={index}
-                    className={`flex gap-3.5 ${
-                      isUser ? "justify-end" : "justify-start"
-                    }`}
+                    className={`flex gap-3.5 ${isUser ? "justify-end" : "justify-start"
+                      }`}
                   >
                     {!isUser && (
                       <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-white/10 text-white flex items-center justify-center overflow-hidden flex-shrink-0 shadow-md ring-1 ring-white/5">
@@ -619,11 +646,10 @@ const reply = cleanAssistantText(rawReply);
                     )}
 
                     <div
-                      className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[24px] px-5 py-3.5 text-sm sm:text-base leading-relaxed shadow-lg flex flex-col gap-2 ${
-                        isUser
+                      className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[24px] px-5 py-3.5 text-sm sm:text-base leading-relaxed shadow-lg flex flex-col gap-2 ${isUser
                           ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-tr-sm shadow-cyan-500/5"
                           : "bg-white/5 border border-white/10 text-slate-100 rounded-tl-sm"
-                      }`}
+                        }`}
                     >
                       <span>{item.text}</span>
                       {item.url && (
@@ -639,8 +665,8 @@ const reply = cleanAssistantText(rawReply);
                               {item.url.includes("youtube.com")
                                 ? "Watch on YouTube"
                                 : item.url.includes("google.com/search")
-                                ? "Open Google Search"
-                                : "Open Link"}
+                                  ? "Open Google Search"
+                                  : "Open Link"}
                             </span>
                           </a>
                         </div>
@@ -688,11 +714,10 @@ const reply = cleanAssistantText(rawReply);
               <button
                 type="button"
                 onClick={handleVoiceInput}
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 cursor-pointer shrink-0 ${
-                  isListening
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 cursor-pointer shrink-0 ${isListening
                     ? "bg-red-600 text-white shadow-lg shadow-red-600/30 animate-pulse"
                     : "bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
-                }`}
+                  }`}
               >
                 {isListening ? <MicOff size={22} /> : <Mic size={22} />}
               </button>
