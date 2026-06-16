@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, ImagePlus, Sparkles, Bot, Loader2 } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { UserContext } from "../context/UserContext";
+import { useNotification } from "../context/NotificationContext";
 
 import img1 from "../assets/image1.png";
 import img2 from "../assets/image2.jpg";
@@ -23,6 +24,7 @@ const assistantImages = [
 const Customize = () => {
   const navigate = useNavigate();
   const { userData, setUserData } = useContext(UserContext);
+  const { showSuccess, showError } = useNotification();
 
   const [assistantName, setAssistantName] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
@@ -76,12 +78,12 @@ const Customize = () => {
     e.preventDefault();
 
     if (!assistantName.trim()) {
-      alert("Please enter assistant name");
+      showError("Please enter assistant name");
       return;
     }
 
     if (!selectedImage && !customImageFile) {
-      alert("Please select or upload assistant image");
+      showError("Please select or upload assistant image");
       return;
     }
 
@@ -107,12 +109,12 @@ const Customize = () => {
         setUserData(response.data.user);
       }
 
-      alert(response.data.message || "Assistant customized successfully");
+      showSuccess(response.data.message || "Assistant customized successfully");
       navigate("/dashboard");
     } catch (error) {
       console.error("Customize error", error);
 
-      alert(
+      showError(
         error.response?.data?.message ||
         "Something went wrong while saving assistant."
       );

@@ -18,13 +18,16 @@ import {
 } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { UserContext } from "../context/UserContext";
+import { useNotification } from "../context/NotificationContext";
 import userGif from "../assets/user.gif";
+import aiGif from "../assets/ai.gif";
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { userData, setUserData } = useContext(UserContext);
+  const { showSuccess, showError } = useNotification();
 
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([
@@ -34,7 +37,30 @@ const Dashboard = () => {
     },
   ]);
 
-  const [isListening, setIsListening] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(null); // null | "listening" | "processing" | "speaking"
+  const isListening = voiceMode === "listening";
+  const isSpeaking = voiceMode === "speaking";
+
+  const setIsListening = (val) => {
+    setVoiceMode((prev) => {
+      if (val) {
+        return "listening";
+      } else {
+        return prev === "listening" ? null : prev;
+      }
+    });
+  };
+
+  const setIsSpeaking = (val) => {
+    setVoiceMode((prev) => {
+      if (val) {
+        return prev === "processing" ? "speaking" : prev;
+      } else {
+        return prev === "speaking" ? null : prev;
+      }
+    });
+  };
+
   const [isLoading, setIsLoading] = useState(false);
   const [messagesInitialized, setMessagesInitialized] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -51,9 +77,13 @@ const Dashboard = () => {
   const wakeWordRecRef = useRef(null);
 
   const [isWakeWordListening, setIsWakeWordListening] = useState(false);
+  const [isWakeWordEnabled, setIsWakeWordEnabled] = useState(
+    localStorage.getItem("wakeWordEnabled") === "true"
+  );
   const [isShutdownActive, setIsShutdownActive] = useState(false);
   const [shutdownCountdown, setShutdownCountdown] = useState(10);
   const shutdownTimerRef = useRef(null);
+  // isSpeaking is defined as derived state above
 
   const assistantName = userData?.assistantName || "Assistant";
   const assistantImage = userData?.assistantImage
@@ -142,7 +172,7 @@ const Dashboard = () => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     
-    if (!SpeechRecognition || isListening || !userData) {
+    if (!SpeechRecognition || !isWakeWordEnabled || voiceMode !== null || !userData) {
       if (wakeWordRecRef.current) {
         try {
           wakeWordRecRef.current.abort();
@@ -157,7 +187,7 @@ const Dashboard = () => {
     let recognition = null;
 
     const startPassiveListening = () => {
-      if (!active || isListening) return;
+      if (!active || voiceMode !== null || !isWakeWordEnabled) return;
 
       try {
         recognition = new SpeechRecognition();
@@ -172,28 +202,41 @@ const Dashboard = () => {
         };
 
         recognition.onresult = (event) => {
-          if (isListening) return;
+          if (voiceMode !== null || !isWakeWordEnabled) return;
 
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript.toLowerCase();
-            const cleanName = assistantName.toLowerCase().trim();
+          let fullTranscript = "";
+          for (let i = 0; i < event.results.length; i++) {
+            fullTranscript += event.results[i][0].transcript;
+          }
+          fullTranscript = fullTranscript.toLowerCase();
+          const cleanName = assistantName.toLowerCase().trim();
 
-            // Match exact wake word name or "hey [name]"
-            if (transcript.includes(cleanName) || transcript.includes("hey " + cleanName) || (cleanName === "assistant" && transcript.includes("assistant"))) {
-              console.log("Wake word detected:", cleanName);
-              
-              // Stop background listener
-              recognition.abort();
-              wakeWordRecRef.current = null;
-              setIsWakeWordListening(false);
-              
-              // Speak acknowledgment and start voice capture
-              speakText(`Yes?`);
-              setTimeout(() => {
-                handleVoiceInput();
-              }, 600);
-              return;
-            }
+          // Match exact wake word name, "hey [name]", or phonetic variants for "Jarvis"
+          const isWakeWordDetected = 
+            fullTranscript.includes(cleanName) || 
+            fullTranscript.includes("hey " + cleanName) ||
+            (cleanName === "jarvis" && (
+              fullTranscript.includes("travis") || 
+              fullTranscript.includes("charvis") || 
+              fullTranscript.includes("java") ||
+              fullTranscript.includes("jar vis") ||
+              fullTranscript.includes("service")
+            )) ||
+            (cleanName === "assistant" && fullTranscript.includes("assistant"));
+
+          if (isWakeWordDetected) {
+            console.log("Wake word detected:", fullTranscript);
+            
+            // Stop background listener
+            recognition.abort();
+            wakeWordRecRef.current = null;
+            setIsWakeWordListening(false);
+            
+            // Speak acknowledgment and start voice capture
+            speakText(`Yes?`);
+            setTimeout(() => {
+              handleVoiceInput();
+            }, 600);
           }
         };
 
@@ -204,8 +247,8 @@ const Dashboard = () => {
         recognition.onend = () => {
           console.log("Wake word listener ended");
           setIsWakeWordListening(false);
-          if (active && !isListening) {
-            setTimeout(startPassiveListening, 1000);
+          if (active && voiceMode === null && isWakeWordEnabled) {
+            setTimeout(startPassiveListening, 100);
           }
         };
 
@@ -215,7 +258,7 @@ const Dashboard = () => {
       }
     };
 
-    const timer = setTimeout(startPassiveListening, 2000);
+    const timer = setTimeout(startPassiveListening, 200);
 
     return () => {
       active = false;
@@ -228,7 +271,7 @@ const Dashboard = () => {
       wakeWordRecRef.current = null;
       setIsWakeWordListening(false);
     };
-  }, [isListening, assistantName, userData]);
+  }, [voiceMode, assistantName, userData, isWakeWordEnabled]);
 
   useEffect(() => {
     return () => {
@@ -288,7 +331,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Failed to abort shutdown:", error);
       const errorMsg = error.response?.data?.message || "Failed to abort shutdown. No active shutdown might be scheduled.";
-      alert(errorMsg);
+      showError(errorMsg);
       cancelShutdownCountdown();
     } finally {
       setIsLoading(false);
@@ -311,9 +354,10 @@ const Dashboard = () => {
         ...prev,
         history: []
       }));
+      showSuccess("Chat history cleared successfully.");
     } catch (error) {
       console.error("Failed to clear chat history:", error);
-      alert("Failed to clear chat history. Please try again.");
+      showError("Failed to clear chat history. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -426,12 +470,31 @@ const Dashboard = () => {
 
       utterance.onend = () => {
         activeUtteranceRef.current = null;
+        setVoiceMode((prev) => {
+          if (prev === "speaking") {
+            setTimeout(() => {
+              handleVoiceInput(true);
+            }, 300);
+            return "listening";
+          }
+          return prev === "speaking" ? null : prev;
+        });
       };
       utterance.onerror = () => {
         activeUtteranceRef.current = null;
+        setVoiceMode((prev) => {
+          if (prev === "speaking") {
+            setTimeout(() => {
+              handleVoiceInput(true);
+            }, 300);
+            return "listening";
+          }
+          return prev === "speaking" ? null : prev;
+        });
       };
 
       window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
     } catch (err) {
       console.error("Text to speech error:", err);
     }
@@ -454,9 +517,11 @@ const Dashboard = () => {
 
       utterance.onend = () => {
         activeUtteranceRef.current = null;
+        setIsSpeaking(false);
       };
       utterance.onerror = () => {
         activeUtteranceRef.current = null;
+        setIsSpeaking(false);
       };
 
       const allVoices = window.speechSynthesis.getVoices();
@@ -467,6 +532,7 @@ const Dashboard = () => {
       }
 
       window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
     } catch (err) {
       console.error("Voice preview error:", err);
     }
@@ -565,16 +631,16 @@ const Dashboard = () => {
     }
   };
 
-  const handleVoiceInput = () => {
+  const handleVoiceInput = (forceStart = false) => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser. Please use Google Chrome.");
+      showError("Speech recognition is not supported in this browser. Please use Google Chrome.");
       return;
     }
 
-    if (isListening) {
+    if (isListening && !forceStart) {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
@@ -584,6 +650,13 @@ const Dashboard = () => {
 
     try {
       window.speechSynthesis?.cancel();
+      setIsSpeaking(false);
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
 
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
@@ -619,6 +692,7 @@ const Dashboard = () => {
 
         if (finalTranscript.trim()) {
           recognition.stop();
+          setVoiceMode("processing");
           handleSendMessage(finalTranscript.trim());
         }
       };
@@ -627,22 +701,33 @@ const Dashboard = () => {
         console.error("Speech recognition error:", event.error);
 
         if (event.error === "not-allowed") {
-          alert("Microphone permission is blocked. Please allow microphone access in browser settings.");
+          showError("Microphone permission is blocked. Please allow microphone access in browser settings.");
         } else if (event.error === "no-speech") {
-          alert("No speech detected. Please speak clearly and try again.");
+          // Suppress silence timeout message while in Voice Assistant Mode
+          console.log("Speech timed out due to silence. Suppressing error alert.");
         } else if (event.error === "audio-capture") {
-          alert("No microphone found. Please check your microphone.");
+          showError("No microphone found. Please check your microphone.");
         } else if (event.error === "network") {
-          alert("Speech recognition network error. Please check your internet connection.");
+          showError("Speech recognition network error. Please check your internet connection.");
         }
 
-        setIsListening(false);
+        if (event.error !== "no-speech") {
+          setIsListening(false);
+        }
         recognitionRef.current = null;
       };
 
       recognition.onend = () => {
         console.log("Speech recognition ended");
-        setIsListening(false);
+        setVoiceMode((prev) => {
+          if (prev === "listening") {
+            setTimeout(() => {
+              handleVoiceInput(true);
+            }, 100);
+            return "listening";
+          }
+          return prev;
+        });
         recognitionRef.current = null;
       };
 
@@ -656,6 +741,8 @@ const Dashboard = () => {
 
   const handleLogout = async () => {
     try {
+      window.speechSynthesis?.cancel();
+      setIsSpeaking(false);
       await axiosClient.post("/auth/logout");
     } catch (error) {
       console.error("Logout error:", error);
@@ -795,6 +882,30 @@ const Dashboard = () => {
               {isListening ? <MicOff size={20} /> : <Mic size={20} />}
               {isListening ? "Listening..." : "Speak Now"}
             </button>
+
+            {/* Wake Word Activation Toggle */}
+            <div className="mt-4 w-full flex items-center justify-between px-4 py-3 rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+              <span className="text-xs font-semibold text-slate-300">
+                Wake Word ("Hey {assistantName}")
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const newVal = !isWakeWordEnabled;
+                  setIsWakeWordEnabled(newVal);
+                  localStorage.setItem("wakeWordEnabled", newVal);
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none cursor-pointer ${
+                  isWakeWordEnabled ? "bg-cyan-500 shadow-md shadow-cyan-500/20" : "bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
+                    isWakeWordEnabled ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
 
             {/* Customize Profile Button */}
             <button
@@ -1055,31 +1166,84 @@ const Dashboard = () => {
         </div>
       )}
       
-      {isListening && (
+      {voiceMode && (
         <div 
-          onClick={handleVoiceInput}
-          className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center cursor-pointer animate-fade-in"
+          onClick={voiceMode === "listening" ? handleVoiceInput : undefined}
+          className={`fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center animate-fade-in select-none ${
+            voiceMode === "listening" ? "cursor-pointer" : ""
+          }`}
         >
           <div className="relative flex flex-col items-center gap-6 p-6 max-w-sm w-full text-center">
-            {/* Glowing ring around the soundwave */}
-            <div className="absolute w-[240px] h-[240px] bg-cyan-500/20 rounded-full blur-[40px] animate-pulse pointer-events-none" />
-            
-            <div className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full overflow-hidden border-2 border-cyan-500/30 shadow-2xl shadow-cyan-500/10 flex items-center justify-center bg-slate-900">
-              <img
-                src={userGif}
-                alt="Listening..."
-                className="w-full h-full object-cover scale-110"
-              />
+            {/* Glowing ring */}
+            <div className={`absolute w-[240px] h-[240px] rounded-full blur-[40px] animate-pulse pointer-events-none ${
+              voiceMode === "listening" ? "bg-cyan-500/20" : "bg-purple-500/20"
+            }`} />
+
+            {/* Avatar / Animation Box */}
+            <div className={`relative w-48 h-48 sm:w-56 sm:h-56 rounded-full overflow-hidden border-2 shadow-2xl bg-slate-900 flex items-center justify-center ${
+              voiceMode === "listening" ? "border-cyan-500/30 shadow-cyan-500/10" : "border-purple-500/30 shadow-purple-500/10"
+            }`}>
+              {voiceMode === "listening" && (
+                <img
+                  src={userGif}
+                  alt="Listening..."
+                  className="w-full h-full object-cover scale-110"
+                />
+              )}
+              {voiceMode === "processing" && (
+                <div className="flex items-center gap-2 justify-center">
+                  <span className="w-3.5 h-3.5 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-3.5 h-3.5 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-3.5 h-3.5 rounded-full bg-purple-400 animate-bounce" />
+                </div>
+              )}
+              {voiceMode === "speaking" && (
+                <img
+                  src={aiGif}
+                  alt="Speaking..."
+                  className="w-full h-full object-cover scale-110"
+                />
+              )}
             </div>
-            
+
+            {/* Description Text */}
             <div className="relative z-10 max-w-xs sm:max-w-md mx-auto">
               <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-relaxed">
-                {message ? `“${message}”` : "Listening to you..."}
+                {voiceMode === "listening" && (message ? `“${message}”` : "Listening to you...")}
+                {voiceMode === "processing" && "Thinking..."}
+                {voiceMode === "speaking" && "Speaking..."}
               </h3>
-              <p className="text-slate-400 mt-3 text-xs sm:text-sm font-medium">
-                {message ? "Transcribing in real-time..." : "Speak clearly. Click anywhere on the screen to cancel."}
+              <p className="text-slate-400 mt-2 text-xs sm:text-sm font-medium">
+                {voiceMode === "listening" && (message ? "Transcribing in real-time..." : "Speak clearly. Click anywhere on the screen to cancel.")}
+                {voiceMode === "processing" && "Analyzing your request..."}
+                {voiceMode === "speaking" && "Your assistant is reading the response."}
               </p>
             </div>
+
+            {/* Stop/Cancel Button */}
+            {(voiceMode === "speaking" || voiceMode === "processing" || voiceMode === "listening") && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.speechSynthesis?.cancel();
+                  if (activeUtteranceRef.current) {
+                    activeUtteranceRef.current.onend = null;
+                    activeUtteranceRef.current.onerror = null;
+                    activeUtteranceRef.current = null;
+                  }
+                  if (recognitionRef.current) {
+                    try {
+                      recognitionRef.current.abort();
+                    } catch (err) {}
+                  }
+                  setVoiceMode(null);
+                }}
+                className="px-6 py-3 rounded-2xl bg-red-500/10 border border-red-500/25 text-red-200 hover:bg-red-500/20 active:scale-[0.98] transition duration-300 font-bold text-sm tracking-wide cursor-pointer mt-2 animate-fade-in"
+              >
+                {voiceMode === "listening" ? "Cancel" : "Stop Playback"}
+              </button>
+            )}
           </div>
         </div>
       )}
