@@ -527,6 +527,17 @@ const Dashboard = () => {
         startShutdownCountdown();
       } else if (response.data.type === "cancel-shutdown") {
         cancelShutdownCountdown();
+      } else if (response.data.type === "clear-history") {
+        setMessages([
+          {
+            role: "assistant",
+            text: "Hello! I am your AI assistant. You can type or use your voice to talk with me.",
+          },
+        ]);
+        setUserData((prev) => ({
+          ...prev,
+          history: []
+        }));
       }
 
       // URL opening is now handled directly by the local Node.js backend to prevent browser popup blocker issues.
