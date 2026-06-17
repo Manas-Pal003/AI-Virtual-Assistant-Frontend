@@ -44,7 +44,6 @@ const Customize = () => {
         
         if (isPreset) {
           setSelectedImage(imagePath);
-        } else {
           const fullPreviewUrl = imagePath.startsWith("/public")
             ? `http://${window.location.hostname}:8000${imagePath}`
             : imagePath;
