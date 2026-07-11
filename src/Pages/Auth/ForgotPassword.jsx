@@ -61,10 +61,16 @@ const ForgotPassword = () => {
 
     } catch (err) {
       console.error("Forgot password error", err);
-      setError(
-        err.response?.data?.message ||
-        "Failed to reset password. Please try again."
-      );
+      if (!err.response) {
+        setError(
+          "Connection failed. Please ensure the Backend server is running on port 8000 and MongoDB is connected."
+        );
+      } else {
+        setError(
+          err.response.data?.message ||
+          "Failed to reset password. Please try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
