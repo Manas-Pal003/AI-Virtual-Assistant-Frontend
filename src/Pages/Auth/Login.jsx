@@ -112,10 +112,16 @@ const Login = () => {
       console.error("Login error", err);
       setUserData(null);
 
-      setError(
-        err.response?.data?.message ||
-        "Login failed. Please check your credentials."
-      );
+      if (!err.response) {
+        setError(
+          "Connection failed. Please ensure the Backend server is running on port 8000 and MongoDB is connected."
+        );
+      } else {
+        setError(
+          err.response.data?.message ||
+          "Login failed. Please check your credentials."
+        );
+      }
     } finally {
       setIsLoading(false);
     }

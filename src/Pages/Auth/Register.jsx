@@ -104,10 +104,16 @@ const Register = () => {
     } catch (err) {
       console.error("Register error", err);
 
-      setError(
-        err.response?.data?.message ||
-        "Registration failed. Please try again."
-      );
+      if (!err.response) {
+        setError(
+          "Connection failed. Please ensure the Backend server is running on port 8000 and MongoDB is connected."
+        );
+      } else {
+        setError(
+          err.response.data?.message ||
+          "Registration failed. Please try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
