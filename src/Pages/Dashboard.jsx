@@ -11,6 +11,7 @@ import {
   Trash2,
   User,
   Volume2,
+  VolumeX,
   Menu,
   X,
   Power,
@@ -77,6 +78,9 @@ const Dashboard = () => {
   const [isWakeWordListening, setIsWakeWordListening] = useState(false);
   const [isWakeWordEnabled, setIsWakeWordEnabled] = useState(
     localStorage.getItem("wakeWordEnabled") === "true"
+  );
+  const [isVoiceReplyEnabled, setIsVoiceReplyEnabled] = useState(
+    localStorage.getItem("voiceReplyEnabled") !== "false"
   );
   const [isShutdownActive, setIsShutdownActive] = useState(false);
   const [shutdownCountdown, setShutdownCountdown] = useState(10);
@@ -361,8 +365,26 @@ const Dashboard = () => {
     }
   };
 
+  const toggleVoiceReply = () => {
+    const newVal = !isVoiceReplyEnabled;
+    setIsVoiceReplyEnabled(newVal);
+    localStorage.setItem("voiceReplyEnabled", newVal);
+  };
+
+  useEffect(() => {
+    if (!isVoiceReplyEnabled && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setVoiceMode((prev) => (prev === "speaking" ? null : prev));
+    }
+  }, [isVoiceReplyEnabled]);
+
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
+
+    if (!isVoiceReplyEnabled) {
+      setVoiceMode((prev) => (prev === "processing" ? null : prev));
+      return;
+    }
 
     try {
       window.speechSynthesis.resume();
@@ -863,10 +885,24 @@ const Dashboard = () => {
                 <p className="mt-2 text-[11px] sm:text-xs font-semibold text-slate-300">Smart Chat</p>
               </div>
 
-              <div className="rounded-2xl bg-white/5 border border-white/10 p-3 sm:p-4 hover:bg-white/10 transition-colors duration-300 text-center">
-                <Volume2 className="mx-auto text-purple-400" size={24} />
-                <p className="mt-2 text-[11px] sm:text-xs font-semibold text-slate-300">Voice Reply</p>
-              </div>
+              <button
+                type="button"
+                onClick={toggleVoiceReply}
+                className={`rounded-2xl p-3 sm:p-4 border transition-all duration-300 text-center cursor-pointer flex flex-col items-center justify-center ${
+                  isVoiceReplyEnabled
+                    ? "bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-500/50 text-white"
+                    : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 text-slate-400"
+                }`}
+              >
+                {isVoiceReplyEnabled ? (
+                  <Volume2 className="mx-auto text-purple-400" size={24} />
+                ) : (
+                  <VolumeX className="mx-auto text-slate-500" size={24} />
+                )}
+                <p className="mt-2 text-[11px] sm:text-xs font-semibold text-slate-300">
+                  {isVoiceReplyEnabled ? "Voice Reply" : "Muted"}
+                </p>
+              </button>
             </div>
 
             {/* Speak Button */}
