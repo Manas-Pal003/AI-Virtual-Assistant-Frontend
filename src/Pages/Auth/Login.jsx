@@ -114,7 +114,7 @@ const Login = () => {
 
       if (!err.response) {
         setError(
-          "Connection failed. Please ensure the Backend server is running on port 8000 and MongoDB is connected."
+          "Connection failed. Please ensure the Backend server is running and MongoDB is connected."
         );
       } else {
         setError(

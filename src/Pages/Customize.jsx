@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, ImagePlus, Sparkles, Bot, Loader2 } from "lucide-react";
-import axiosClient from "../api/axiosClient";
+import axiosClient, { API_URL } from "../api/axiosClient";
 import { UserContext } from "../context/UserContext";
 import { useNotification } from "../context/NotificationContext";
 
@@ -45,7 +45,7 @@ const Customize = () => {
         if (isPreset) {
           setSelectedImage(imagePath);
           const fullPreviewUrl = imagePath.startsWith("/public")
-            ? `http://${window.location.hostname}:8000${imagePath}`
+            ? `${API_URL}${imagePath}`
             : imagePath;
           setCustomPreview(fullPreviewUrl);
         }

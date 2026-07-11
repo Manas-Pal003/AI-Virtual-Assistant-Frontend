@@ -16,13 +16,11 @@ import {
   Power,
   ShieldAlert,
 } from "lucide-react";
-import axiosClient from "../api/axiosClient";
+import axiosClient, { API_URL } from "../api/axiosClient";
 import { UserContext } from "../context/UserContext";
 import { useNotification } from "../context/NotificationContext";
 import userGif from "../assets/user.gif";
 import aiGif from "../assets/ai.gif";
-
-const API_URL = `http://${window.location.hostname}:8000`;
 
 const Dashboard = () => {
   const navigate = useNavigate();

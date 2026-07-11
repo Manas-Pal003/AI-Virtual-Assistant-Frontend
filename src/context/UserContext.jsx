@@ -1,11 +1,11 @@
 import React from "react";
 import { createContext, useState, useEffect } from "react";
-import axiosClient from "../api/axiosClient";
+import axiosClient, { API_URL } from "../api/axiosClient";
 
 const UserContext = createContext();
 
 function UserContextProvider({ children }) {
-    const serverUrl = `http://${window.location.hostname}:8000/api`;
+    const serverUrl = `${API_URL}/api`;
     const [userData, setUserData] = useState(null);
     const [loadingUser, setLoadingUser] = useState(true);
     
